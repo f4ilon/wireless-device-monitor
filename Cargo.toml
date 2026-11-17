@@ -1,0 +1,11 @@
+[package]
+name = "wireless_monitor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+btleplug = "0.13.5"
+hidapi = "2.6.7"
+tokio = { version = "1.54.1", features = ["full"] }
+uuid = "1.29.3"
+windows = { version = "0.62.2", features = ["Win32_System_Power"] }
