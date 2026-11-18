@@ -2,7 +2,7 @@ use image::{Rgba, RgbaImage};
 
 /// Рисует иконку батареи (RGBA 8-бит) заданного размера.
 /// `level` — заряд 0–100; `None` рисует только контур.
-pub fn battery_icon(size: u32, level: Option<u8>) -> RgbaImage {
+pub fn battery_icon(size: u32, level: Option<u8>, dark_taskbar: bool) -> RgbaImage {
     let w = size;
     let h = size;
     let mut img = RgbaImage::new(w, h);
@@ -18,7 +18,11 @@ pub fn battery_icon(size: u32, level: Option<u8>) -> RgbaImage {
     let nib_y0 = h / 3;
     let nib_y1 = h.saturating_sub(h / 3).max(nib_y0);
 
-    let border = Rgba([70, 70, 70, 255]);
+    let border = if dark_taskbar {
+        Rgba([245, 245, 245, 255])
+    } else {
+        Rgba([38, 38, 38, 255])
+    };
     let empty = Rgba([0, 0, 0, 0]);
     let fill = match level {
         Some(v) if v <= 20 => Rgba([220, 40, 40, 255]),
