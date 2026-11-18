@@ -1,43 +1,24 @@
 use std::error::Error;
-use hidapi::HidApi;
+
+use hidapi::{DeviceInfo, HidApi};
 
 pub mod compx;
 
+/// Интерфейс поставщика данных об аккумуляторе для устройств конкретного производителя.
 pub trait BatteryProvider {
-    fn supports(
-        &self,
-        vendor_id: u16,
-        product_id: u16,
-    ) -> bool;
+    /// Возвращает true, если провайдер работает с данным VID/PID.
+    fn supports(&self, vendor_id: u16, product_id: u16) -> bool;
 
+    /// Читает уровень заряда аккумулятора устройства (0–100 %) или Ok(None),
+    /// если данные недоступны.
     fn get_battery_level(
         &self,
         api: &HidApi,
-        vendor_id: u16,
-        product_id: u16,
+        device: &DeviceInfo,
     ) -> Result<Option<u8>, Box<dyn Error>>;
 }
 
-pub fn get_device_battery_level(
-    vendor_id: u16,
-    product_id: u16,
-) -> Result<Option<u8>, Box<dyn Error>> {
-
-    let api = HidApi::new()?;
-
-    let providers: [&dyn BatteryProvider; 1] = [
-        &compx::CompxProvider,
-    ];
-
-    for provider in providers {
-        if provider.supports(vendor_id, product_id) {
-            return provider.get_battery_level(
-                &api,
-                vendor_id,
-                product_id,
-            );
-        }
-    }
-
-    Ok(None)
+/// Список всех подключённых поставщиков.
+pub fn providers() -> Vec<Box<dyn BatteryProvider>> {
+    vec![Box::new(compx::CompxProvider)]
 }
