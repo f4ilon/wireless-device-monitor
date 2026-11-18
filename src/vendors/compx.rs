@@ -1,9 +1,14 @@
 use std::error::Error;
-use std::io::{Error as IoError, ErrorKind};
 
-use hidapi::HidApi;
+use hidapi::{DeviceInfo, HidApi};
 
 use super::BatteryProvider;
+
+/// VID/PID USB-приёмника Compx.
+const COMPX_VENDOR_ID: u16 = 0x3554;
+const COMPX_PRODUCT_ID: u16 = 0xF53C;
+/// Vendor-defined HID-интерфейс приёмника, через который идёт обмен с микроконтроллером.
+const COMPX_USAGE_PAGE: u16 = 0xFF02;
 
 pub struct CompxProvider;
 
@@ -14,30 +19,21 @@ impl BatteryProvider for CompxProvider {
         vendor_id: u16,
         product_id: u16,
     ) -> bool {
-        vendor_id == 0x3554 && product_id == 0xF53C
+        vendor_id == COMPX_VENDOR_ID && product_id == COMPX_PRODUCT_ID
     }
 
     fn get_battery_level(
         &self,
         api: &HidApi,
-        vendor_id: u16,
-        product_id: u16,
+        device: &DeviceInfo,
     ) -> Result<Option<u8>, Box<dyn Error>> {
 
-        let info = api.device_list()
-            .find(|d| {
-                d.vendor_id() == vendor_id
-                    && d.product_id() == product_id
-                    && d.usage_page() == 0xFF02
-            })
-            .ok_or_else(|| {
-                IoError::new(
-                    ErrorKind::NotFound,
-                    "Compx HID interface FF02 not found",
-                )
-            })?;
+        // Пропускаем другие интерфейсы того же устройства (например, стандартный Consumer Control)
+        if device.usage_page() != COMPX_USAGE_PAGE {
+            return Ok(None);
+        }
 
-        let device = api.open_path(info.path())?;
+        let device = api.open_path(device.path())?;
 
         // Report ID + 16 байт данных
         let mut request = [0u8; 17];
