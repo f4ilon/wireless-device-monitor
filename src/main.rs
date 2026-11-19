@@ -18,6 +18,8 @@ use crate::tray::{TrayCommand, TrayHandle};
 
 const DEVICE_TYPES_STORAGE_KEY: &str = "device_types";
 const DEVICE_NAMES_STORAGE_KEY: &str = "device_names";
+const TRAY_DEVICES_STORAGE_KEY: &str = "tray_devices";
+const DARK_MODE_STORAGE_KEY: &str = "dark_mode";
 
 /// Приложение: окно egui + системный трей с иконкой заряда.
 struct WirelessMonitorApp {
@@ -37,6 +39,12 @@ impl WirelessMonitorApp {
             }
             if let Some(device_names) = eframe::get_value(storage, DEVICE_NAMES_STORAGE_KEY) {
                 state.device_names = device_names;
+            }
+            if let Some(tray_devices) = eframe::get_value(storage, TRAY_DEVICES_STORAGE_KEY) {
+                state.tray_devices = tray_devices;
+            }
+            if let Some(dark_mode) = eframe::get_value(storage, DARK_MODE_STORAGE_KEY) {
+                state.dark_mode = dark_mode;
             }
         }
         state.rescan();
@@ -122,6 +130,8 @@ impl eframe::App for WirelessMonitorApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, DEVICE_TYPES_STORAGE_KEY, &self.state.device_types);
         eframe::set_value(storage, DEVICE_NAMES_STORAGE_KEY, &self.state.device_names);
+        eframe::set_value(storage, TRAY_DEVICES_STORAGE_KEY, &self.state.tray_devices);
+        eframe::set_value(storage, DARK_MODE_STORAGE_KEY, &self.state.dark_mode);
     }
 }
 
@@ -158,6 +168,10 @@ fn bottom_right_position(
 
 pub fn main() -> Result<(), eframe::Error> {
     let fixed_size = [420.0, 360.0];
+    let app_icon = eframe::icon_data::from_png_bytes(
+        include_bytes!("../assets/battery-app.png"),
+    )
+    .expect("assets/battery-app.png должен быть корректным PNG");
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(fixed_size)
@@ -165,7 +179,8 @@ pub fn main() -> Result<(), eframe::Error> {
             .with_max_inner_size(fixed_size)
             .with_resizable(false)
             .with_maximize_button(false)
-            .with_title("Wireless Monitor"),
+            .with_title("Wireless Monitor")
+            .with_icon(app_icon),
         ..Default::default()
     };
 

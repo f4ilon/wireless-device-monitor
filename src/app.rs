@@ -6,9 +6,6 @@ use hidapi::HidApi;
 use crate::battery;
 use crate::device_scanner;
 
-const LUNACY_VENDOR_ID: u16 = 0x0C45;
-const LUNACY_PRODUCT_ID: u16 = 0x8009;
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceType {
@@ -67,6 +64,7 @@ pub struct AppState {
     pub expanded_devices: HashSet<String>,
     pub device_types: HashMap<String, DeviceType>,
     pub device_names: HashMap<String, String>,
+    pub tray_devices: HashSet<String>,
 }
 
 impl Default for AppState {
@@ -81,6 +79,7 @@ impl Default for AppState {
             expanded_devices: HashSet::new(),
             device_types: HashMap::new(),
             device_names: HashMap::new(),
+            tray_devices: HashSet::new(),
         }
     }
 }
@@ -110,16 +109,40 @@ impl AppState {
 
         self.scan_error = None;
         self.devices = collect_devices(&api);
+        self.sort_devices();
         self.last_scan = Some(Instant::now());
         true
     }
 
-    /// Иконка в трее: минимальный заряд среди устройств с известным уровнем.
-    pub fn tray_level(&self) -> Option<u8> {
-        self.devices
-            .iter()
-            .filter_map(|device| device.level)
-            .min()
+    pub fn sort_devices(&mut self) {
+        let tray_devices = &self.tray_devices;
+        let device_names = &self.device_names;
+        self.devices.sort_by(|a, b| {
+            let a_selected = tray_devices.contains(&a.path);
+            let b_selected = tray_devices.contains(&b.path);
+            let display_name = |device: &DeviceInfoView| {
+                device_names
+                    .get(&device.path)
+                    .filter(|name| !name.trim().is_empty())
+                    .cloned()
+                    .unwrap_or_else(|| device.name.clone())
+            };
+            let rank = |selected: bool, has_level: bool| {
+                match (selected, has_level) {
+                    (true, _) => 0,
+                    (false, true) => 1,
+                    (false, false) => 2,
+                }
+            };
+            rank(a_selected, a.level.is_some())
+                .cmp(&rank(b_selected, b.level.is_some()))
+                .then_with(|| {
+                    display_name(a)
+                        .to_lowercase()
+                        .cmp(&display_name(b).to_lowercase())
+                })
+                .then_with(|| a.path.cmp(&b.path))
+        });
     }
 
     pub fn display_name(&self, device: &DeviceInfoView) -> String {
@@ -134,46 +157,31 @@ impl AppState {
 fn collect_devices(api: &HidApi) -> Vec<DeviceInfoView> {
     device_scanner::get_24ghz_devices(api)
         .iter()
-        .filter_map(|device| {
+        .map(|device| {
             let name = device.product_string().unwrap_or("Unknown").to_string();
             let path = device.path().to_string_lossy().to_string();
-            let show_without_charge = device.vendor_id() == LUNACY_VENDOR_ID
-                && device.product_id() == LUNACY_PRODUCT_ID;
 
             match battery::get_device_battery_level(api, device) {
-                Ok(Some(level)) => Some(DeviceInfoView {
+                Ok(Some(level)) => DeviceInfoView {
                     name,
                     path,
                     level: Some(level),
-                }),
-                Ok(None) if show_without_charge => Some(DeviceInfoView {
+                },
+                Ok(None) => DeviceInfoView {
                     name,
                     path,
                     level: None,
-                }),
-                Ok(None) => None,
+                },
                 Err(error) => {
                     eprintln!("Ошибка чтения заряда устройства {name}: {error}");
-                    show_without_charge.then_some(DeviceInfoView {
+                    DeviceInfoView {
                         name,
                         path,
                         level: None,
-                    })
+                    }
                 }
             }
         })
-        // Одно физическое устройство может раскрываться несколькими
-        // HID-интерфейсами — оставляем запись с известным зарядом.
-        .fold(HashMap::<String, DeviceInfoView>::new(), |mut acc, item| {
-            match acc.get(&item.name) {
-                Some(existing) if existing.level.is_some() && item.level.is_none() => {}
-                _ => {
-                    acc.insert(item.name.clone(), item);
-                }
-            }
-            acc
-        })
-        .into_values()
         .collect()
 }
 
@@ -240,6 +248,7 @@ mod gui {
 
         let mut toggled_device = None;
         let mut changed_types = Vec::new();
+        let mut changed_tray_devices = Vec::new();
         egui::Panel::bottom("device_footer")
             .frame(
                 egui::Frame::new()
@@ -423,6 +432,18 @@ mod gui {
                                                     .push((device.path.clone(), selected_type));
                                             }
                                         });
+                                        let tray_selected = state.tray_devices.contains(&device.path);
+                                        let mut next_tray_selected = tray_selected;
+                                        if ui
+                                            .checkbox(
+                                                &mut next_tray_selected,
+                                                "Показывать в трее",
+                                            )
+                                            .changed()
+                                        {
+                                            changed_tray_devices
+                                                .push((device.path.clone(), next_tray_selected));
+                                        }
                                     });
                             }
                             ui.add_space(5.0);
@@ -445,6 +466,14 @@ mod gui {
                 state.device_types.insert(path, device_type);
             }
         }
+        for (path, selected) in changed_tray_devices {
+            if selected {
+                state.tray_devices.insert(path);
+            } else {
+                state.tray_devices.remove(&path);
+            }
+        }
+        state.sort_devices();
     }
 
     pub fn battery_color(level: u8) -> egui::Color32 {
