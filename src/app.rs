@@ -66,6 +66,7 @@ pub struct AppState {
     pub theme_initialized: bool,
     pub expanded_devices: HashSet<String>,
     pub device_types: HashMap<String, DeviceType>,
+    pub device_names: HashMap<String, String>,
 }
 
 impl Default for AppState {
@@ -79,6 +80,7 @@ impl Default for AppState {
             theme_initialized: false,
             expanded_devices: HashSet::new(),
             device_types: HashMap::new(),
+            device_names: HashMap::new(),
         }
     }
 }
@@ -118,6 +120,14 @@ impl AppState {
             .iter()
             .filter_map(|device| device.level)
             .min()
+    }
+
+    pub fn display_name(&self, device: &DeviceInfoView) -> String {
+        self.device_names
+            .get(&device.path)
+            .filter(|name| !name.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| device.name.clone())
     }
 }
 
@@ -336,9 +346,10 @@ mod gui {
                                 .get(&device.path)
                                 .copied()
                                 .unwrap_or(DeviceType::Auto);
+                            let display_name = state.display_name(device);
                             if draw_device_row(
                                 ui,
-                                device,
+                                &display_name,
                                 device.level,
                                 device_type,
                                 open,
@@ -363,30 +374,51 @@ mod gui {
                                         );
                                         ui.horizontal(|ui| {
                                             ui.label(
+                                                egui::RichText::new("Имя")
+                                                    .size(12.0)
+                                                    .color(colors.muted),
+                                            );
+                                            let mut name = state
+                                                .device_names
+                                                .get(&device.path)
+                                                .cloned()
+                                                .unwrap_or_else(|| display_name.clone());
+                                            let response = egui::TextEdit::singleline(&mut name)
+                                                .desired_width(220.0)
+                                                .show(ui);
+                                            if response.response.changed() {
+                                                if name.trim().is_empty() {
+                                                    state.device_names.remove(&device.path);
+                                                } else {
+                                                    state.device_names.insert(
+                                                        device.path.clone(),
+                                                        name.trim().to_string(),
+                                                    );
+                                                }
+                                            }
+                                        });
+                                        ui.horizontal(|ui| {
+                                            ui.label(
                                                 egui::RichText::new("Тип устройства")
                                                     .size(12.0)
                                                     .color(colors.muted),
                                             );
                                             let mut selected_type = device_type;
-                                            let response = egui::ComboBox::from_id_salt((
+                                            egui::ComboBox::from_id_salt((
                                                 "device_type",
                                                 device.path.as_str(),
                                             ))
                                             .selected_text(selected_type.label())
                                             .show_ui(ui, |ui| {
-                                                let mut changed = false;
                                                 for kind in DeviceType::ALL {
-                                                    changed |= ui
-                                                        .selectable_value(
-                                                            &mut selected_type,
-                                                            kind,
-                                                            kind.label(),
-                                                        )
-                                                        .changed();
+                                                    ui.selectable_value(
+                                                        &mut selected_type,
+                                                        kind,
+                                                        kind.label(),
+                                                    );
                                                 }
-                                                changed
                                             });
-                                            if response.inner.unwrap_or(false) {
+                                            if selected_type != device_type {
                                                 changed_types
                                                     .push((device.path.clone(), selected_type));
                                             }
@@ -425,7 +457,7 @@ mod gui {
 
     fn draw_device_row(
         ui: &mut egui::Ui,
-        device: &DeviceInfoView,
+        display_name: &str,
         level: Option<u8>,
         device_type: DeviceType,
         open: bool,
@@ -455,7 +487,7 @@ mod gui {
         draw_device_icon(
             painter,
             device_type,
-            &device.name,
+            display_name,
             egui::pos2(rect.left() + 22.0, center.y),
             colors.text,
         );
@@ -468,7 +500,7 @@ mod gui {
             .text(
                 egui::pos2(rect.left() + 42.0, center.y),
                 egui::Align2::LEFT_CENTER,
-                &device.name,
+                display_name,
                 egui::FontId::proportional(14.0),
                 colors.text,
             );

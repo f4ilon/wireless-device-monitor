@@ -17,6 +17,7 @@ use crate::app::AppState;
 use crate::tray::{TrayCommand, TrayHandle};
 
 const DEVICE_TYPES_STORAGE_KEY: &str = "device_types";
+const DEVICE_NAMES_STORAGE_KEY: &str = "device_names";
 
 /// Приложение: окно egui + системный трей с иконкой заряда.
 struct WirelessMonitorApp {
@@ -33,6 +34,9 @@ impl WirelessMonitorApp {
         if let Some(storage) = cc.storage {
             if let Some(device_types) = eframe::get_value(storage, DEVICE_TYPES_STORAGE_KEY) {
                 state.device_types = device_types;
+            }
+            if let Some(device_names) = eframe::get_value(storage, DEVICE_NAMES_STORAGE_KEY) {
+                state.device_names = device_names;
             }
         }
         state.rescan();
@@ -117,6 +121,7 @@ impl eframe::App for WirelessMonitorApp {
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, DEVICE_TYPES_STORAGE_KEY, &self.state.device_types);
+        eframe::set_value(storage, DEVICE_NAMES_STORAGE_KEY, &self.state.device_names);
     }
 }
 

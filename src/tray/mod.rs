@@ -101,7 +101,7 @@ impl TrayHandle {
             dark_taskbar,
             main_icon_dark_taskbar: dark_taskbar,
         };
-        handle.sync_device_trays(&state.devices, dark_taskbar);
+        handle.sync_device_trays(state, dark_taskbar);
         handle.last_device_scan = state.last_scan;
         Ok(handle)
     }
@@ -140,22 +140,24 @@ impl TrayHandle {
         }
 
         if scan_changed {
-            self.sync_device_trays(&state.devices, self.dark_taskbar);
             self.last_device_scan = state.last_scan;
         }
+        self.sync_device_trays(state, self.dark_taskbar);
     }
 
-    fn sync_device_trays(&mut self, devices: &[DeviceInfoView], dark_taskbar: bool) {
+    fn sync_device_trays(&mut self, state: &AppState, dark_taskbar: bool) {
+        let devices = &state.devices;
         let active_paths: HashSet<&str> =
             devices.iter().map(|device| device.path.as_str()).collect();
         self.device_trays
             .retain(|path, _| active_paths.contains(path.as_str()));
 
         for device in devices {
+            let display_name = state.display_name(device);
             let tooltip = device
                 .level
-                .map_or_else(|| format!("{}: —", device.name), |level| {
-                    format!("{}: {}%", device.name, level)
+                .map_or_else(|| format!("{}: —", display_name), |level| {
+                    format!("{}: {}%", display_name, level)
                 });
             if let Some(icon) = self.device_trays.get_mut(&device.path) {
                 if icon.level != device.level || icon.dark_taskbar != dark_taskbar {
@@ -279,9 +281,10 @@ fn tray_tooltip(state: &AppState) -> String {
         .iter()
         .take(6)
         .map(|d: &DeviceInfoView| {
+            let display_name = state.display_name(d);
             d.level.map_or_else(
-                || format!("{}: —", d.name),
-                |level| format!("{}: {}%", d.name, level),
+                || format!("{}: —", display_name),
+                |level| format!("{}: {}%", display_name, level),
             )
         })
         .collect();
