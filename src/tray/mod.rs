@@ -26,10 +26,8 @@ pub struct TrayHandle {
     device_trays: HashMap<String, DeviceTrayIcon>,
     rx: Receiver<TrayCommand>,
     last_tooltip: String,
-    last_level: Option<u8>,
     last_device_scan: Option<Instant>,
     dark_taskbar: bool,
-    main_icon_dark_taskbar: bool,
 }
 
 struct DeviceTrayIcon {
@@ -53,7 +51,6 @@ impl TrayHandle {
         menu.append(&refresh_item).map_err(|e| e.to_string())?;
         menu.append(&quit_item).map_err(|e| e.to_string())?;
 
-        let level = state.tray_level();
         let tooltip = tray_tooltip(state);
         let dark_taskbar = match read_system_dark_theme() {
             Ok(dark) => dark,
@@ -62,7 +59,7 @@ impl TrayHandle {
                 false
             }
         };
-        let icon = build_tray_icon(level, dark_taskbar)?;
+        let icon = build_app_tray_icon()?;
 
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -96,10 +93,8 @@ impl TrayHandle {
             device_trays: HashMap::new(),
             rx,
             last_tooltip: tooltip,
-            last_level: level,
             last_device_scan: None,
             dark_taskbar,
-            main_icon_dark_taskbar: dark_taskbar,
         };
         handle.sync_device_trays(state, dark_taskbar);
         handle.last_device_scan = state.last_scan;
@@ -108,26 +103,11 @@ impl TrayHandle {
 
     /// Обновляет иконку и тултип, если значения изменились.
     pub fn sync(&mut self, state: &AppState) {
-        let level = state.tray_level();
         let scan_changed = self.last_device_scan != state.last_scan;
         if scan_changed {
             match read_system_dark_theme() {
                 Ok(dark) => self.dark_taskbar = dark,
                 Err(error) => eprintln!("Не удалось определить тему панели Windows: {error}"),
-            }
-        }
-
-        if level != self.last_level
-            || (scan_changed && self.main_icon_dark_taskbar != self.dark_taskbar)
-        {
-            match build_tray_icon(level, self.dark_taskbar).and_then(|icon| {
-                self.tray.set_icon(Some(icon)).map_err(|error| error.to_string())
-            }) {
-                Ok(()) => {
-                    self.last_level = level;
-                    self.main_icon_dark_taskbar = self.dark_taskbar;
-                }
-                Err(error) => eprintln!("Не удалось обновить значок в трее: {error}"),
             }
         }
 
@@ -147,12 +127,18 @@ impl TrayHandle {
 
     fn sync_device_trays(&mut self, state: &AppState, dark_taskbar: bool) {
         let devices = &state.devices;
-        let active_paths: HashSet<&str> =
-            devices.iter().map(|device| device.path.as_str()).collect();
+        let active_paths: HashSet<&str> = devices
+            .iter()
+            .filter(|device| state.tray_devices.contains(&device.path))
+            .map(|device| device.path.as_str())
+            .collect();
         self.device_trays
             .retain(|path, _| active_paths.contains(path.as_str()));
 
         for device in devices {
+            if !state.tray_devices.contains(&device.path) {
+                continue;
+            }
             let display_name = state.display_name(device);
             let tooltip = device
                 .level
@@ -215,6 +201,14 @@ fn build_tray_icon(level: Option<u8>, dark_taskbar: bool) -> Result<Icon, String
     let size = 32;
     let img = battery_icon(size, level, dark_taskbar);
     Icon::from_rgba(img.into_raw(), size, size).map_err(|e| e.to_string())
+}
+
+fn build_app_tray_icon() -> Result<Icon, String> {
+    let image = image::load_from_memory(include_bytes!("../../assets/battery-app.png"))
+        .map_err(|error| error.to_string())?
+        .resize_exact(32, 32, image::imageops::FilterType::Lanczos3)
+        .into_rgba8();
+    Icon::from_rgba(image.into_raw(), 32, 32).map_err(|error| error.to_string())
 }
 
 fn build_device_tray(
