@@ -1,9 +1,11 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app;
 mod battery;
 mod device_scanner;
 mod vendors;
 
 #[cfg(all(feature = "gui", windows))]
+
 mod tray;
 
 use std::time::Instant;
