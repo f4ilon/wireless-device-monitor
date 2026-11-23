@@ -231,6 +231,10 @@ fn build_device_tray(
     })
 }
 
+pub fn read_app_dark_theme() -> Result<bool, String> {
+    read_light_theme_value(w!("AppsUseLightTheme")).map(|is_light| !is_light)
+}
+
 fn read_system_dark_theme() -> Result<bool, String> {
     match read_light_theme_value(w!("SystemUsesLightTheme")) {
         Ok(is_light) => Ok(!is_light),

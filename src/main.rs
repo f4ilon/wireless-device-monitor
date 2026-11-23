@@ -47,6 +47,10 @@ impl WirelessMonitorApp {
                 state.dark_mode = dark_mode;
             }
         }
+        match crate::tray::read_app_dark_theme() {
+            Ok(dark_mode) => state.dark_mode = dark_mode,
+            Err(error) => eprintln!("Не удалось определить тему приложения Windows: {error}"),
+        }
         state.rescan();
 
         let tray = match TrayHandle::new(&state) {
