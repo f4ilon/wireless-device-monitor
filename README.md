@@ -30,7 +30,8 @@
 - [x] Получение ответа от USB-приёмника.
 - [x] Извлечение значения заряда аккумулятора.
 - [x] Проверка контрольной суммы ответа.
-- [ ] Поддержка других производителей.
+- [x] Поддержка Logitech HID++ 2.0 (прямые подключения и приёмники).
+- [x] Чтение стандартной Bluetooth GATT Battery Service (`0x180F`) и HID Battery Strength (`0x06`/`0x20`).
 - [ ] Графический интерфейс.
 - [ ] Автоматическое обновление показателей.
 - [ ] Уведомления о низком заряде.
@@ -41,10 +42,13 @@
 wireless_monitor/
 ├── src/
 │   ├── main.rs
+│   ├── bluetooth.rs
 │   ├── device_scanner.rs
 │   ├── hid_utils.rs
 │   └── vendors/
 │       ├── mod.rs
+│       ├── logitech.rs
+│       ├── standard.rs
 │       └── compx.rs
 ├── Cargo.toml
 └── README.md
@@ -53,10 +57,13 @@ wireless_monitor/
 Назначение модулей:
 
 - `main.rs` — точка входа приложения.
+- `bluetooth.rs` — чтение заряда через стандартную Bluetooth GATT Battery Service.
 - `device_scanner.rs` — обнаружение HID-устройств.
 - `hid_utils.rs` — вспомогательные функции для работы с HID.
 - `vendors/mod.rs` — общий интерфейс поставщиков данных об аккумуляторе.
 - `vendors/compx.rs` — реализация протокола для совместимого USB-приёмника Compx.
+- `vendors/logitech.rs` — Logitech HID++ 2.0, включая устройства за Unifying, Bolt и Lightspeed-приёмниками.
+- `vendors/standard.rs` — стандартный HID Battery Strength для устройств разных производителей.
 
 ## Поддерживаемые устройства
 
@@ -140,7 +147,7 @@ target/release/wireless_monitor.exe
 - Устранение повторного обнаружения одного устройства.
 
 ### Этап 2. Поддержка производителей
-- Исследование протоколов Logitech.
+- [x] Поддержка Logitech HID++ 2.0.
 - Исследование протоколов Razer.
 - Исследование протоколов SteelSeries.
 - Добавление новых реализаций через общий интерфейс.

@@ -3,22 +3,34 @@ use std::error::Error;
 use hidapi::{DeviceInfo, HidApi};
 
 pub mod compx;
+pub mod logitech;
+pub mod standard;
+
+#[derive(Clone, Debug)]
+pub struct BatteryDevice {
+    pub name: String,
+    pub path: String,
+    pub level: u8,
+}
 
 /// Интерфейс поставщика данных об аккумуляторе для устройств конкретного производителя.
 pub trait BatteryProvider {
     /// Возвращает true, если провайдер работает с данным VID/PID.
     fn supports(&self, vendor_id: u16, product_id: u16) -> bool;
 
-    /// Читает уровень заряда аккумулятора устройства (0–100 %) или Ok(None),
-    /// если данные недоступны.
-    fn get_battery_level(
+    /// Читает уровни заряда устройства и подключённых к нему приёмников.
+    fn get_battery_levels(
         &self,
         api: &HidApi,
         device: &DeviceInfo,
-    ) -> Result<Option<u8>, Box<dyn Error>>;
+    ) -> Result<Vec<BatteryDevice>, Box<dyn Error>>;
 }
 
 /// Список всех подключённых поставщиков.
 pub fn providers() -> Vec<Box<dyn BatteryProvider>> {
-    vec![Box::new(compx::CompxProvider)]
+    vec![
+        Box::new(compx::CompxProvider),
+        Box::new(logitech::LogitechProvider),
+        Box::new(standard::StandardHidProvider),
+    ]
 }

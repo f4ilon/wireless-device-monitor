@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use hidapi::HidApi;
 
 use crate::battery;
+use crate::bluetooth;
 use crate::device_scanner;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -155,34 +156,58 @@ impl AppState {
 }
 
 fn collect_devices(api: &HidApi) -> Vec<DeviceInfoView> {
-    device_scanner::get_24ghz_devices(api)
-        .iter()
-        .map(|device| {
-            let name = device.product_string().unwrap_or("Unknown").to_string();
-            let path = device.path().to_string_lossy().to_string();
+    let mut devices: Vec<DeviceInfoView> = Vec::new();
+    for device in device_scanner::get_24ghz_devices(api) {
+        let name = device.product_string().unwrap_or("Unknown").to_string();
+        let path = device.path().to_string_lossy().to_string();
 
-            match battery::get_device_battery_level(api, device) {
-                Ok(Some(level)) => DeviceInfoView {
-                    name,
-                    path,
-                    level: Some(level),
-                },
-                Ok(None) => DeviceInfoView {
+        match battery::get_device_battery_levels(api, &device) {
+            Ok(readings) if !readings.is_empty() => {
+                devices.extend(readings.into_iter().map(|device| DeviceInfoView {
+                    name: device.name,
+                    path: device.path,
+                    level: Some(device.level),
+                }));
+            }
+            Ok(_) => devices.push(DeviceInfoView {
+                name,
+                path,
+                level: None,
+            }),
+            Err(error) => {
+                eprintln!("Ошибка чтения заряда устройства {name}: {error}");
+                devices.push(DeviceInfoView {
                     name,
                     path,
                     level: None,
-                },
-                Err(error) => {
-                    eprintln!("Ошибка чтения заряда устройства {name}: {error}");
-                    DeviceInfoView {
-                        name,
-                        path,
-                        level: None,
+                });
+            }
+        }
+    }
+
+    match bluetooth::battery_devices() {
+        Ok(bluetooth_devices) => {
+            for bluetooth_device in bluetooth_devices {
+                if let Some(device) = devices
+                    .iter_mut()
+                    .find(|device| device.name.eq_ignore_ascii_case(&bluetooth_device.name))
+                {
+                    if device.level.is_none() {
+                        device.level = Some(bluetooth_device.level);
                     }
+                } else {
+                    devices.push(DeviceInfoView {
+                        name: bluetooth_device.name,
+                        path: bluetooth_device.path,
+                        level: Some(bluetooth_device.level),
+                    });
                 }
             }
-        })
-        .collect()
+        }
+        Err(error) => eprintln!("Ошибка сканирования Bluetooth-устройств: {error}"),
+    }
+
+    devices
 }
 
 #[cfg(all(feature = "gui", windows))]
