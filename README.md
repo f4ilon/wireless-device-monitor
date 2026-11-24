@@ -31,6 +31,8 @@
 - [x] Извлечение значения заряда аккумулятора.
 - [x] Проверка контрольной суммы ответа.
 - [x] Поддержка Logitech HID++ 2.0 (прямые подключения и приёмники).
+- [x] Поддержка Razer HID Power Management и SteelSeries Aerox, Prime, Rival и Arctis.
+- [x] Поддержка Xiaomi Redmi Buds 6 Lite через RFCOMM и Huawei FreeBuds/FreeLace/FreeClip через SPP.
 - [x] Чтение стандартной Bluetooth GATT Battery Service (`0x180F`) и HID Battery Strength (`0x06`/`0x20`).
 - [ ] Графический интерфейс.
 - [ ] Автоматическое обновление показателей.
@@ -43,11 +45,15 @@ wireless_monitor/
 ├── src/
 │   ├── main.rs
 │   ├── bluetooth.rs
+│   ├── huawei.rs
+│   ├── xiaomi.rs
 │   ├── device_scanner.rs
 │   ├── hid_utils.rs
 │   └── vendors/
 │       ├── mod.rs
 │       ├── logitech.rs
+│       ├── razer.rs
+│       ├── steelseries.rs
 │       ├── standard.rs
 │       └── compx.rs
 ├── Cargo.toml
@@ -58,11 +64,15 @@ wireless_monitor/
 
 - `main.rs` — точка входа приложения.
 - `bluetooth.rs` — чтение заряда через стандартную Bluetooth GATT Battery Service.
+- `huawei.rs` — чтение заряда Huawei FreeBuds и совместимых устройств через SPP.
+- `xiaomi.rs` — чтение заряда Xiaomi Redmi Buds 6 Lite через RFCOMM.
 - `device_scanner.rs` — обнаружение HID-устройств.
 - `hid_utils.rs` — вспомогательные функции для работы с HID.
 - `vendors/mod.rs` — общий интерфейс поставщиков данных об аккумуляторе.
 - `vendors/compx.rs` — реализация протокола для совместимого USB-приёмника Compx.
 - `vendors/logitech.rs` — Logitech HID++ 2.0, включая устройства за Unifying, Bolt и Lightspeed-приёмниками.
+- `vendors/razer.rs` — Razer HID Power Management для мышей и клавиатур.
+- `vendors/steelseries.rs` — профили SteelSeries Aerox, Prime, Rival и Arctis.
 - `vendors/standard.rs` — стандартный HID Battery Strength для устройств разных производителей.
 
 ## Поддерживаемые устройства
@@ -148,8 +158,8 @@ target/release/wireless_monitor.exe
 
 ### Этап 2. Поддержка производителей
 - [x] Поддержка Logitech HID++ 2.0.
-- Исследование протоколов Razer.
-- Исследование протоколов SteelSeries.
+- [x] Поддержка Razer и SteelSeries.
+- [x] Поддержка Xiaomi и Huawei TWS через RFCOMM/SPP.
 - Добавление новых реализаций через общий интерфейс.
 
 ### Этап 3. Мониторинг

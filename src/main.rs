@@ -3,7 +3,9 @@ mod app;
 mod battery;
 mod bluetooth;
 mod device_scanner;
+mod huawei;
 mod vendors;
+mod xiaomi;
 
 #[cfg(all(feature = "gui", windows))]
 

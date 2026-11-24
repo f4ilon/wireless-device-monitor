@@ -7,7 +7,9 @@ use windows::Devices::Enumeration::DeviceInformation;
 use windows::Storage::Streams::DataReader;
 use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize};
 use windows::core::RuntimeType;
-use windows_future::{AsyncOperationCompletedHandler, IAsyncOperation};
+use windows_future::{
+    AsyncActionCompletedHandler, AsyncOperationCompletedHandler, IAsyncAction, IAsyncOperation,
+};
 
 use crate::vendors::BatteryDevice;
 
@@ -18,7 +20,10 @@ const ASYNC_TIMEOUT: Duration = Duration::from_secs(4);
 pub fn battery_devices() -> Result<Vec<BatteryDevice>, String> {
     std::thread::spawn(|| {
         let _apartment = ComApartment::new()?;
-        read_battery_devices()
+        let mut devices = read_battery_devices()?;
+        devices.extend(crate::xiaomi::battery_devices()?);
+        devices.extend(crate::huawei::battery_devices()?);
+        Ok(devices)
     })
     .join()
     .map_err(|_| "поток сканирования Bluetooth завершился с ошибкой".to_string())?
@@ -103,7 +108,7 @@ fn read_battery_level(device: &BluetoothLEDevice) -> Result<Option<u8>, String> 
     Ok(None)
 }
 
-fn wait<T: RuntimeType + Send>(operation: IAsyncOperation<T>) -> Result<T, String> {
+pub(crate) fn wait<T: RuntimeType + Send>(operation: IAsyncOperation<T>) -> Result<T, String> {
     let (sender, receiver) = mpsc::sync_channel(1);
     operation
         .SetCompleted(&AsyncOperationCompletedHandler::new(move |operation, _| {
@@ -122,7 +127,26 @@ fn wait<T: RuntimeType + Send>(operation: IAsyncOperation<T>) -> Result<T, Strin
     }
 }
 
-fn error(error: windows::core::Error) -> String {
+pub(crate) fn wait_action(operation: IAsyncAction) -> Result<(), String> {
+    let (sender, receiver) = mpsc::sync_channel(1);
+    operation
+        .SetCompleted(&AsyncActionCompletedHandler::new(move |operation, _| {
+            let result = operation.ok().and_then(|operation| operation.GetResults());
+            let _ = sender.send(result);
+            Ok(())
+        }))
+        .map_err(error)?;
+
+    match receiver.recv_timeout(ASYNC_TIMEOUT) {
+        Ok(result) => result.map_err(error),
+        Err(error) => {
+            let _ = operation.Cancel();
+            Err(error.to_string())
+        }
+    }
+}
+
+pub(crate) fn error(error: windows::core::Error) -> String {
     error.to_string()
 }
 
